@@ -1,0 +1,85 @@
+name: Finance News Scraper
+
+on:
+  # scheduled run every day at 5am ET
+  schedule:
+    - cron: '0 9 * * *'  # 5am est
+  
+  # manual trigger from github actions ui
+  workflow_dispatch:
+    inputs:
+      debug_mode:
+        description: 'run in debug mode (limited articles)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  scrape-news:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: checkout repository
+      uses: actions/checkout@v4
+      
+    - name: set up python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: download nltk data
+      run: |
+        python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
+        
+    - name: create output directory
+      run: mkdir -p output
+      
+    - name: run news scraper
+      run: python news_scraper.py
+      env:
+        DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
+        
+    - name: commit and push results
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "github action"
+        git add output/
+        git diff --staged --quiet || git commit -m "update news data - $(date '+%y-%m-%d %h:%m:%s')"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: upload output artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: news-scraper-output
+        path: output/
+        retention-days: 30
+        
+    - name: create summary
+      if: always()
+      run: |
+        echo "## news scraper results" >> $GITHUB_STEP_SUMMARY
+        if [ -f "output/news_results.csv" ]; then
+          echo "Scraper completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "**current database:**" >> $GITHUB_STEP_SUMMARY
+          echo "- articles in main database: $(tail -n +2 output/news_results.csv | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- archive files: $(ls output/news_archive_*.csv 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- last updated: $(date)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Scraper failed - no output file generated" >> $GITHUB_STEP_SUMMARY
+        fi
