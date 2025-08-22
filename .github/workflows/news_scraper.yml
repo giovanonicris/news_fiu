@@ -60,7 +60,7 @@ jobs:
         git diff --staged --quiet || git commit -m "update news data - $(date '+%y-%m-%d %h:%m:%s')"
         git push
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.ERM_GHTOKEN }}
         
     - name: upload output artifacts
       uses: actions/upload-artifact@v3
