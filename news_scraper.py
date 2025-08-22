@@ -64,7 +64,7 @@ class NewsScaper:
             return set(existing_df['link'].dropna().str.lower())
         return set()
     
-    def search_google_news(self, search_term, days=3):
+    def search_google_news(self, search_term, days=7):
         """search google news for articles"""
         url = f"https://news.google.com/rss/search?q={search_term}%20when%3A{days}d"
         headers = {'User-Agent': random.choice(self.user_agents)}
